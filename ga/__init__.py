@@ -1,1 +1,1 @@
-from ga.grid import Grid
+from ga.grid import Grid, Coordinate

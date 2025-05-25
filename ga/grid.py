@@ -8,6 +8,35 @@ import numpy as np
 NUM_NEIGHBOR_CELLS = 8
 
 #################################
+# Coordinate                    #
+#################################
+
+
+class Coordinate(object):
+    def __init__(self, row: int, col: int):
+        self.row = row
+        self.col = col
+
+    def __add__(self, other: "Coordinate") -> "Coordinate":
+        return Coordinate(self.row + other.row, self.col + other.col)
+
+    def __iadd__(self, other: "Coordinate"):
+        self.row += other.row
+        self.col += other.col
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Coordinate):
+            return False
+        return self.row == other.row and self.col == other.col
+
+    def __str__(self) -> str:
+        return f"({self.row}, {self.col})"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
+#################################
 # Grid                          #
 #################################
 
@@ -40,59 +69,52 @@ class Grid(object):
         Returns neighbors of each grid cell in a matrix of shape (G*G, N*S)
         """
 
-        # Grid (G, G, S) -> (G*G, S)
-        flat_grid = self._grid.reshape(-1, self.state_size)
-        assert flat_grid.shape == (self.num_cells, self.state_size)
-
         # Grab each neighboring position for all cells at once (N, G*G, S)
         sep_neighbors = np.zeros(
             (NUM_NEIGHBOR_CELLS + 1, self.num_cells, self.state_size), Grid._NP_DTYPE
         )
 
-        for ngb_pos, (row_dir, col_dir) in enumerate(
-            product(range(-1, 2), range(-1, 2))
-        ):
-            sep_neighbors[ngb_pos] = self._neighbors_in_dir(flat_grid, row_dir, col_dir)
+        for ngb_pos, direction in enumerate(product(range(-1, 2), range(-1, 2))):
+            sep_neighbors[ngb_pos] = self._neighbors_in_dir(Coordinate(*direction))
 
-        return sep_neighbors.transpose(0, 1).reshape(self.num_cells, -1)
+        return sep_neighbors.transpose(1, 2, 0).reshape(self.num_cells, -1)
 
-    def _neighbors_in_dir(
-        self, flat_grid: np.ndarray, row_dir: int, col_dir: int
-    ) -> np.ndarray:
-        assert abs(row_dir) <= 1 and abs(col_dir) <= 1
+    def _neighbors_in_dir(self, direction: Coordinate) -> np.ndarray:
+        """
+        Returns neighbors in a single direction (G*G, S)
+        """
 
-        def calc_idx_offset() -> int:
-            offset = self.grid_size * row_dir
-            offset += self.grid_size + col_dir
-            return offset
-
-        idx_offset = calc_idx_offset()
+        assert abs(direction.row) <= 1 and abs(direction.col) <= 1
 
         neighbors_in_dir = np.zeros((self.num_cells, self.state_size), Grid._NP_DTYPE)
 
         for cell_idx in range(self.num_cells):
-            ngb_idx = cell_idx + idx_offset
+            ngb_coord = self._flat_idx_to_coord(cell_idx) + direction
 
-            if self._is_flat_idx_valid(ngb_idx):
-                neighbors_in_dir[cell_idx] = flat_grid[ngb_idx]
+            if self._is_coord_valid(ngb_coord):
+                neighbors_in_dir[cell_idx] = self._get_cell(ngb_coord)
 
         return neighbors_in_dir
 
-    def _flat_idx_to_coord(self, flat_idx: int) -> tuple[int, int]:
+    def _flat_idx_to_coord(self, flat_idx: int) -> Coordinate:
         assert self._is_flat_idx_valid(flat_idx)
-        return flat_idx // self.grid_size, flat_idx % self.grid_size
+        return Coordinate(flat_idx // self.grid_size, flat_idx % self.grid_size)
 
-    def _coord_to_flat_idx(self, coord: tuple[int, int]) -> int:
+    def _coord_to_flat_idx(self, coord: Coordinate) -> int:
         assert self._is_coord_valid(coord)
-        return coord[0] * self.grid_size + coord[1]
+        return coord.row * self.grid_size + coord.col
 
-    def _is_coord_valid(self, coord: tuple[int, int]) -> bool:
+    def _is_coord_valid(self, coord: Coordinate) -> bool:
         return (
-            0 <= coord[0]
-            and coord[0] < self.grid_size
-            and 0 <= coord[1]
-            and coord[1] < self.grid_size
+            0 <= coord.row
+            and coord.row < self.grid_size
+            and 0 <= coord.col
+            and coord.col < self.grid_size
         )
 
     def _is_flat_idx_valid(self, flat_idx: int) -> bool:
         return 0 <= flat_idx and flat_idx < self.num_cells
+
+    def _get_cell(self, coord: Coordinate) -> np.ndarray:
+        assert self._is_coord_valid(coord)
+        return self._grid[coord.row][coord.col]
