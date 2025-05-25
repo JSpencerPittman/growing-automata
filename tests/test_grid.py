@@ -1,5 +1,5 @@
-import numpy as np
 import pytest
+import torch
 
 from ga import Grid, Coordinate
 
@@ -12,18 +12,18 @@ def grid_8by8_zeroed():
 @pytest.fixture
 def grid_3by3_enumerated():
     grid = Grid(3, 1)
-    grid._grid = np.arange(1, 10, dtype=Grid._NP_DTYPE).reshape(3, 3, 1)
+    grid._grid = torch.arange(1, 10, dtype=Grid._TORCH_DTYPE).reshape(3, 3, 1)
     return grid
 
 
 @pytest.fixture
 def grid_2by2_enumerated():
     grid = Grid(2, 2)
-    grid._grid = np.arange(1, 9, dtype=Grid._NP_DTYPE).reshape(2, 2, 2)
+    grid._grid = torch.arange(1, 9, dtype=Grid._TORCH_DTYPE).reshape(2, 2, 2)
     return grid
 
 
-def are_numpy_arrays_the_same(a: np.ndarray, b: np.ndarray):
+def are_tensors_the_same(a: torch.Tensor, b: torch.Tensor):
     return a.dtype == b.dtype and a.shape == b.shape and (a - b).sum() == 0.0
 
 
@@ -37,7 +37,7 @@ def test_Grid__neighbors(grid_3by3_enumerated):
     Test neighbors on 3x3 simple grid
     """
 
-    exp_neighbors = np.array(
+    exp_neighbors = torch.asarray(
         [
             [0, 0, 0, 0, 1, 2, 0, 4, 5],
             [0, 0, 0, 1, 2, 3, 4, 5, 6],
@@ -49,12 +49,12 @@ def test_Grid__neighbors(grid_3by3_enumerated):
             [4, 5, 6, 7, 8, 9, 0, 0, 0],
             [5, 6, 0, 8, 9, 0, 0, 0, 0],
         ],
-        dtype=Grid._NP_DTYPE,
+        dtype=Grid._TORCH_DTYPE,
     )
 
     act_neighbors = grid_3by3_enumerated.neighbors()
 
-    assert are_numpy_arrays_the_same(exp_neighbors, act_neighbors)
+    assert are_tensors_the_same(exp_neighbors, act_neighbors)
 
 
 def test_Grid__prv_neighbors_in_dir(grid_3by3_enumerated, grid_2by2_enumerated):
@@ -63,26 +63,24 @@ def test_Grid__prv_neighbors_in_dir(grid_3by3_enumerated, grid_2by2_enumerated):
     """
 
     top_left_dir = Coordinate(-1, -1)
-    exp_neighbor_in_top_left = np.array(
-        [0, 0, 0, 0, 1, 2, 0, 4, 5], dtype=Grid._NP_DTYPE
+    exp_neighbor_in_top_left = torch.asarray(
+        [0, 0, 0, 0, 1, 2, 0, 4, 5], dtype=Grid._TORCH_DTYPE
     ).reshape(9, 1)
     act_neighbor_in_top_left = grid_3by3_enumerated._neighbors_in_dir(top_left_dir)
 
-    assert are_numpy_arrays_the_same(exp_neighbor_in_top_left, act_neighbor_in_top_left)
+    assert are_tensors_the_same(exp_neighbor_in_top_left, act_neighbor_in_top_left)
 
     """
     Test neighbors on 2x2 grid with state size of 3
     """
 
     bot_right_dir = Coordinate(1, 1)
-    exp_neighbor_in_bot_right = np.array(
-        [7, 8, 0, 0, 0, 0, 0, 0], dtype=Grid._NP_DTYPE
+    exp_neighbor_in_bot_right = torch.asarray(
+        [7, 8, 0, 0, 0, 0, 0, 0], dtype=Grid._TORCH_DTYPE
     ).reshape(4, 2)
     act_neighbor_in_bot_right = grid_2by2_enumerated._neighbors_in_dir(bot_right_dir)
 
-    assert are_numpy_arrays_the_same(
-        exp_neighbor_in_bot_right, act_neighbor_in_bot_right
-    )
+    assert are_tensors_the_same(exp_neighbor_in_bot_right, act_neighbor_in_bot_right)
 
 
 def test_Grid___prv_flat_idx_to_coord(grid_8by8_zeroed):

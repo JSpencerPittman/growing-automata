@@ -1,6 +1,7 @@
 from itertools import product
 from typing import Optional
-import numpy as np
+import torch
+import math
 
 #################################
 # Constants                     #
@@ -50,65 +51,74 @@ class Grid(object):
         N: Number of Neighbors
     """
 
-    _NP_DTYPE = np.float32
+    _TORCH_DTYPE = torch.float32
 
     def __init__(
-        self, grid_size: int, state_size: int, grid: Optional[np.ndarray] = None
+        self, grid_size: int, state_size: int, grid: Optional[torch.Tensor] = None
     ):
         self.grid_size = grid_size
         self.num_cells = grid_size * grid_size
         self.state_size = state_size
 
         if grid is None:
-            self._grid = np.zeros(
-                (grid_size, grid_size, state_size), dtype=Grid._NP_DTYPE
+            self._grid = torch.zeros(
+                (grid_size, grid_size, state_size), dtype=Grid._TORCH_DTYPE
             )
         else:
             assert grid.shape == (grid_size, grid_size, state_size)
-            assert grid.dtype == np.float64
+            assert grid.dtype == Grid._TORCH_DTYPE
             self._grid = grid
 
     @classmethod
-    def from_grid(cls, grid: np.ndarray):
+    def from_grid(cls, grid: torch.Tensor):
         return cls(grid.shape[0], grid.shape[-1], grid)
 
-    def grid(self) -> np.ndarray:
+    @classmethod
+    def from_state(cls, state: torch.Tensor):
+        num_cells = state.size(0)
+        grid_size = int(math.sqrt(num_cells))
+        return cls.from_grid(state.reshape(grid_size, grid_size, -1))
+
+    def grid(self) -> torch.Tensor:
         """
         Returns grid of shape (G, G, S)
         """
 
         return self._grid
 
-    def state(self) -> np.ndarray:
+    def state(self) -> torch.Tensor:
         """
         Returns state of each grid cell in a matrix of shape (G*G, S)
         """
 
         return self._grid.reshape(-1, self.state_size)
 
-    def neighbors(self) -> np.ndarray:
+    def neighbors(self) -> torch.Tensor:
         """
         Returns neighbors of each grid cell in a matrix of shape (G*G, N*S)
         """
 
         # Grab each neighboring position for all cells at once (N, G*G, S)
-        sep_neighbors = np.zeros(
-            (NUM_NEIGHBOR_CELLS + 1, self.num_cells, self.state_size), Grid._NP_DTYPE
+        sep_neighbors = torch.zeros(
+            (NUM_NEIGHBOR_CELLS + 1, self.num_cells, self.state_size),
+            dtype=Grid._TORCH_DTYPE,
         )
 
         for ngb_pos, direction in enumerate(product(range(-1, 2), range(-1, 2))):
             sep_neighbors[ngb_pos] = self._neighbors_in_dir(Coordinate(*direction))
 
-        return sep_neighbors.transpose(1, 2, 0).reshape(self.num_cells, -1)
+        return sep_neighbors.transpose(0, 1).reshape(self.num_cells, -1)
 
-    def _neighbors_in_dir(self, direction: Coordinate) -> np.ndarray:
+    def _neighbors_in_dir(self, direction: Coordinate) -> torch.Tensor:
         """
         Returns neighbors in a single direction (G*G, S)
         """
 
         assert abs(direction.row) <= 1 and abs(direction.col) <= 1
 
-        neighbors_in_dir = np.zeros((self.num_cells, self.state_size), Grid._NP_DTYPE)
+        neighbors_in_dir = torch.zeros(
+            (self.num_cells, self.state_size), dtype=Grid._TORCH_DTYPE
+        )
 
         for cell_idx in range(self.num_cells):
             ngb_coord = self._flat_idx_to_coord(cell_idx) + direction
@@ -137,6 +147,6 @@ class Grid(object):
     def _is_flat_idx_valid(self, flat_idx: int) -> bool:
         return 0 <= flat_idx and flat_idx < self.num_cells
 
-    def _get_cell(self, coord: Coordinate) -> np.ndarray:
+    def _get_cell(self, coord: Coordinate) -> torch.Tensor:
         assert self._is_coord_valid(coord)
         return self._grid[coord.row][coord.col]
