@@ -1,4 +1,5 @@
 from itertools import product
+from typing import Optional
 import numpy as np
 
 #################################
@@ -49,13 +50,27 @@ class Grid(object):
         N: Number of Neighbors
     """
 
-    _NP_DTYPE = np.float64
+    _NP_DTYPE = np.float32
 
-    def __init__(self, grid_size: int, state_size: int):
+    def __init__(
+        self, grid_size: int, state_size: int, grid: Optional[np.ndarray] = None
+    ):
         self.grid_size = grid_size
         self.num_cells = grid_size * grid_size
         self.state_size = state_size
-        self._grid = np.zeros((grid_size, grid_size, state_size), dtype=Grid._NP_DTYPE)
+
+        if grid is None:
+            self._grid = np.zeros(
+                (grid_size, grid_size, state_size), dtype=Grid._NP_DTYPE
+            )
+        else:
+            assert grid.shape == (grid_size, grid_size, state_size)
+            assert grid.dtype == np.float64
+            self._grid = grid
+
+    @classmethod
+    def from_grid(cls, grid: np.ndarray):
+        return cls(grid.shape[0], grid.shape[-1], grid)
 
     def grid(self) -> np.ndarray:
         """
@@ -63,6 +78,13 @@ class Grid(object):
         """
 
         return self._grid
+
+    def state(self) -> np.ndarray:
+        """
+        Returns state of each grid cell in a matrix of shape (G*G, S)
+        """
+
+        return self._grid.reshape(-1, self.state_size)
 
     def neighbors(self) -> np.ndarray:
         """
