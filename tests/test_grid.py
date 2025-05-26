@@ -6,19 +6,19 @@ from ga import Grid, Coordinate
 
 @pytest.fixture
 def grid_8by8_zeroed():
-    return Grid(8, 7)
+    return Grid(8, 8, 7)
 
 
 @pytest.fixture
 def grid_3by3_enumerated():
-    grid = Grid(3, 1)
+    grid = Grid(3, 3, 1)
     grid._grid = torch.arange(1, 10, dtype=Grid._TORCH_DTYPE).reshape(3, 3, 1)
     return grid
 
 
 @pytest.fixture
 def grid_2by2_enumerated():
-    grid = Grid(2, 2)
+    grid = Grid(2, 2, 2)
     grid._grid = torch.arange(1, 9, dtype=Grid._TORCH_DTYPE).reshape(2, 2, 2)
     return grid
 

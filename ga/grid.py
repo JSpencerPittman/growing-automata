@@ -1,7 +1,6 @@
 from itertools import product
 from typing import Optional
 import torch
-import math
 
 #################################
 # Constants                     #
@@ -46,7 +45,9 @@ class Coordinate(object):
 class Grid(object):
     """
     Notation:
-        G: Grid Size
+        G_R: Grid Rows
+        G_C: Grid Cols
+        G: Number of cells (G_R * G_C)
         S: State Size
         N: Number of Neighbors
     """
@@ -54,48 +55,58 @@ class Grid(object):
     _TORCH_DTYPE = torch.float32
 
     def __init__(
-        self, grid_size: int, state_size: int, grid: Optional[torch.Tensor] = None
+        self,
+        grid_rows: int,
+        grid_cols: int,
+        state_size: int,
+        grid: Optional[torch.Tensor] = None,
+        grid_init_random: bool = False,
     ):
-        self.grid_size = grid_size
-        self.num_cells = grid_size * grid_size
+        self.grid_rows = grid_rows
+        self.grid_cols = grid_cols
+        self.num_cells = grid_rows * grid_cols
         self.state_size = state_size
 
-        if grid is None:
+        if grid is None and not grid_init_random:
             self._grid = torch.zeros(
-                (grid_size, grid_size, state_size), dtype=Grid._TORCH_DTYPE
+                (grid_rows, grid_cols, state_size), dtype=Grid._TORCH_DTYPE
+            )
+        elif grid is None and grid_init_random:
+            self._grid = torch.rand(
+                (grid_rows, grid_cols, state_size), dtype=Grid._TORCH_DTYPE
             )
         else:
-            assert grid.shape == (grid_size, grid_size, state_size)
+            assert grid is not None
+            assert grid.shape == (grid_rows, grid_cols, state_size)
             assert grid.dtype == Grid._TORCH_DTYPE
             self._grid = grid
 
     @classmethod
     def from_grid(cls, grid: torch.Tensor):
-        return cls(grid.shape[0], grid.shape[-1], grid)
+        grid_rows, grid_cols, state_size = grid.shape
+        return cls(grid_rows, grid_cols, state_size, grid=grid)
 
     @classmethod
-    def from_state(cls, state: torch.Tensor):
-        num_cells = state.size(0)
-        grid_size = int(math.sqrt(num_cells))
-        return cls.from_grid(state.reshape(grid_size, grid_size, -1))
+    def from_state(cls, state: torch.Tensor, grid_size: tuple[int, int]):
+        return cls.from_grid(state.reshape(*grid_size, -1))
 
     def grid(self) -> torch.Tensor:
         """
-        Returns grid of shape (G, G, S)
+        Returns grid of shape (G_R, G_C, S)
         """
 
         return self._grid
 
     def state(self) -> torch.Tensor:
         """
-        Returns state of each grid cell in a matrix of shape (G*G, S)
+        Returns state of each grid cell in a matrix of shape (G, S)
         """
 
         return self._grid.reshape(-1, self.state_size)
 
     def neighbors(self) -> torch.Tensor:
         """
-        Returns neighbors of each grid cell in a matrix of shape (G*G, N*S)
+        Returns neighbors of each grid cell in a matrix of shape (G, N*S)
         """
 
         # Grab each neighboring position for all cells at once (N, G*G, S)
@@ -111,7 +122,7 @@ class Grid(object):
 
     def _neighbors_in_dir(self, direction: Coordinate) -> torch.Tensor:
         """
-        Returns neighbors in a single direction (G*G, S)
+        Returns neighbors in a single direction (G, S)
         """
 
         assert abs(direction.row) <= 1 and abs(direction.col) <= 1
@@ -130,18 +141,18 @@ class Grid(object):
 
     def _flat_idx_to_coord(self, flat_idx: int) -> Coordinate:
         assert self._is_flat_idx_valid(flat_idx)
-        return Coordinate(flat_idx // self.grid_size, flat_idx % self.grid_size)
+        return Coordinate(flat_idx // self.grid_cols, flat_idx % self.grid_cols)
 
     def _coord_to_flat_idx(self, coord: Coordinate) -> int:
         assert self._is_coord_valid(coord)
-        return coord.row * self.grid_size + coord.col
+        return coord.row * self.grid_cols + coord.col
 
     def _is_coord_valid(self, coord: Coordinate) -> bool:
         return (
             0 <= coord.row
-            and coord.row < self.grid_size
+            and coord.row < self.grid_rows
             and 0 <= coord.col
-            and coord.col < self.grid_size
+            and coord.col < self.grid_cols
         )
 
     def _is_flat_idx_valid(self, flat_idx: int) -> bool:
