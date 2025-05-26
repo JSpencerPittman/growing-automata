@@ -63,9 +63,7 @@ class CellNN(nn.Module):
         assert state.dtype == CellNN._TORCH_DTYPE
         assert state.size(1) == self.state_size
 
-        return torch.floor((F.sigmoid(self.map_output(state)) * self.num_poss_vals)).to(
-            CellNN._TORCH_OUTPUT_DTYPE
-        )
+        return F.sigmoid(self.map_output(state)) * self.num_poss_vals
 
     def forward(self, curr_state: torch.Tensor, output: bool = False) -> torch.Tensor:
         x = self.next_state(curr_state)
