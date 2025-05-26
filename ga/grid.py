@@ -1,5 +1,6 @@
 from itertools import product
 from typing import Optional
+from time import time
 import torch
 
 #################################
@@ -38,6 +39,34 @@ class Coordinate(object):
 
 
 #################################
+# Rectangle                     #
+#################################
+
+
+class Rectangle(object):
+    def __init__(self, top_left: Coordinate, shape: tuple[int, int]):
+        self.top_left = top_left
+        self.shape = shape
+        self.top, self.left = top_left.row, top_left.col
+        self.rows, self.cols = shape
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Rectangle):
+            return False
+        return (
+            self.top_left == other.top_left
+            and self.rows == other.rows
+            and self.cols == other.cols
+        )
+
+    def __str__(self) -> str:
+        return f"({self.top}, {self.left}, {self.rows}, {self.cols})"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
+#################################
 # Grid                          #
 #################################
 
@@ -64,6 +93,7 @@ class Grid(object):
     ):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
+        self.grid_size = (grid_rows, grid_cols)
         self.num_cells = grid_rows * grid_cols
         self.state_size = state_size
 
@@ -127,17 +157,31 @@ class Grid(object):
 
         assert abs(direction.row) <= 1 and abs(direction.col) <= 1
 
+        # (G_R, G_C, S)
         neighbors_in_dir = torch.zeros(
-            (self.num_cells, self.state_size), dtype=Grid._TORCH_DTYPE
+            (*self.grid_size, self.state_size), dtype=Grid._TORCH_DTYPE
         )
 
-        for cell_idx in range(self.num_cells):
-            ngb_coord = self._flat_idx_to_coord(cell_idx) + direction
+        def cpy_bnds(
+            uni_dir: int, length: int
+        ) -> tuple[tuple[int, int], tuple[int, int]]:
+            if uni_dir == -1:
+                return (0, length - 1), (1, length)
+            elif uni_dir == 0:
+                return (0, length), (0, length)
+            else:
+                return (1, length), (0, length - 1)
 
-            if self._is_coord_valid(ngb_coord):
-                neighbors_in_dir[cell_idx] = self._get_cell(ngb_coord)
+        src_vert_bnds, tgt_vert_bnds = cpy_bnds(direction.row, self.grid_rows)
+        src_horz_bnds, tgt_horz_bnds = cpy_bnds(direction.col, self.grid_cols)
 
-        return neighbors_in_dir
+        neighbors_in_dir[
+            tgt_vert_bnds[0] : tgt_vert_bnds[1], tgt_horz_bnds[0] : tgt_horz_bnds[1]
+        ] = self._grid[
+            src_vert_bnds[0] : src_vert_bnds[1], src_horz_bnds[0] : src_horz_bnds[1]
+        ]
+
+        return neighbors_in_dir.reshape(self.num_cells, self.state_size)
 
     def _flat_idx_to_coord(self, flat_idx: int) -> Coordinate:
         assert self._is_flat_idx_valid(flat_idx)
